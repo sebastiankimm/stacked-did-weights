@@ -271,30 +271,50 @@ Then we can append the individual sub-experiments into one large dataset that we
 ### R
 
 ```{r}
-# create the sub-experimental data sets
-events = dtc[is.na(adopt_year) == FALSE, funique(adopt_year)]
+## function for stacking the whole data
+stack_data <- function(dataset, timeID, groupID, adoptionTime, focalAdoptionTime=NULL, kappa_pre, kappa_post){
 
-# make a list to store the sub experiments in.
-sub_experiments = list()
-
-# Loop over the events and make a data set for each one
-for (j in events) {
-  sub_name = paste0("sub_",j) 
-  sub_experiments[[sub_name]] = create_sub_exp(
-              dataset = dtc,
-              timeID = "year",
-              groupID = "statefips", 
-              adoptionTime = "adopt_year", 
-              focalAdoptionTime = j,
-              kappa_pre = 3,
-              kappa_post = 2)
+  if(is.null(focalAdoptionTime)){
+    events = dataset[is.na(get(adoptionTime)) == FALSE, funique(get(adoptionTime))]
+  } else {
+    events = focalAdoptionTime
+  }
+  
+  
+  # make a list to store the sub experiments in.
+  sub_experiments = vector(mode="list", length = length(events))
+  
+  # Loop over the events and make a data set for each one
+  for (j in events) {
+    sub_name = paste0("sub_",j) 
+    sub_experiments[[sub_name]] = create_sub_exp(
+      dataset = dataset,
+      timeID = timeID,
+      groupID = groupID, 
+      adoptionTime = adoptionTime, 
+      focalAdoptionTime = j,
+      kappa_pre = kappa_pre,
+      kappa_post = kappa_post)
+  }
+  
+  # Vertically concatenate the sub-experiments
+  sub_experiments = rbindlist(sub_experiments)
+  
+  # Remove the sub-experiments that are not feasible
+  stacked_dtc = sub_experiments[feasible == 1]
+  gc()
+  
+  return(stacked_dtc)
 }
 
-# Vertically concatenate the sub-experiments
-stackfull = rbindlist(sub_experiments)
-
-# Remove the sub-experiments that are not feasible
-stacked_dtc = stackfull[feasible == 1]
+stacked_dtc = stack_data(
+  dataset = dtc,
+  timeID = "year",
+  groupID = "statefips", 
+  adoptionTime = "adopt_year", 
+  focalAdoptionTime = NULL,
+  kappa_pre = 3,
+  kappa_post = 2)
 
 # Summarize
 datasummary(All(stacked_dtc) ~ N + Mean + SD + Min + Max,
